@@ -26,7 +26,8 @@
 
 const char* ssid = SECRET_SSID;
 const char* password = SECRET_PASSWORD;
-const char* mqtt_server = SECRET_MQTT_SERVER;
+const char* mqtt_hostname = SECRET_MQTT_SERVER;
+IPAddress mqtt_server_ip;
 
 String mainTopic = "ha";
 String temperatureTopic = "_temperature";
@@ -66,20 +67,34 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
+
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (client.connect("arduinoClient_temperature_sensor")) {
-      Serial.println("connected");
+    Serial.print("Resolving MQTT hostname: ");
+    Serial.println(mqtt_hostname);
+    
+    if (WiFi.hostByName(mqtt_hostname, mqtt_server_ip)) {
+      Serial.print("MQTT broker resolved to IP: ");
+      Serial.println(mqtt_server_ip);
+      client.setServer(mqtt_server_ip, 1883);
+      
+      Serial.print("Attempting MQTT connection...");
+      // Attempt to connect
+      if (client.connect("arduinoClient_temperature_sensor")) {
+        Serial.println("connected");
+        return; // Successfully connected, exit function
+      } else {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+        Serial.println(" try again in 5 seconds");
+      }
     } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
+      Serial.println("DNS resolution failed! Retrying in 5 seconds...");
     }
+    
+    // Wait 5 seconds before retrying (for both mDNS failure and MQTT connection failure)
+    delay(5000);
   }
 }
 
@@ -102,8 +117,7 @@ void setup()
 
   //Wire.setClock(400000); //experimental I2C speed! 400KHz, default 100KHz
 
-  setup_wifi(); 
-  client.setServer(mqtt_server, 1883);
+  setup_wifi();
 }
 
 
